@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Reporte Semanal de Mantenimiento</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+:root{--bg:#f0f2f5;--surface:#fff;--surface2:#f7f8fa;--border:#e2e6ea;--text:#1a1d23;--text2:#6b7280;--blue:#3498db;--orange:#f39c12;--pink:#CD3278;--purple:#9b59b6;--crimson:#CD3700;--green:#00C853;--yellow:#FFD600;--red:#FF1744;--navy:#0B3D91;--amber:#FF6F00;--radius:14px;--shadow:0 2px 12px rgba(0,0,0,0.06)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
+
+/* LOADING */
+#loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:8888}
+.spinner-box{background:#fff;padding:28px 36px;border-radius:16px;text-align:center}
+.spinner{width:38px;height:38px;border:4px solid #e0e0e0;border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LAYOUT */
+#app{display:block;min-height:100vh}
+.topbar{background:var(--navy);color:#fff;padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:58px;box-shadow:0 2px 10px rgba(11,61,145,.3)}
+.topbar-left{display:flex;align-items:center;gap:14px}
+.topbar-left img{height:34px;filter:brightness(0) invert(1)}
+.topbar-title{font-size:16px;font-weight:700;letter-spacing:.3px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.tag-status{font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px}
+.tag-ok{background:rgba(0,200,83,.18);color:#00C853}
+.tag-warn{background:rgba(255,214,0,.18);color:#F9A825}
+.tag-err{background:rgba(255,23,68,.18);color:#FF1744}
+.btn-config{background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 13px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600}
+.main{padding:22px 28px}
+
+/* CONFIG */
+#configPanel{background:#fffde7;border:1px solid #ffe082;border-radius:var(--radius);padding:16px 20px;margin-bottom:18px;display:none}
+#configPanel .cfg-row{display:flex;gap:10px;margin-top:10px}
+#configPanel input{flex:1;padding:9px 12px;border:1px solid #ffe082;border-radius:8px;font-size:13px}
+#configPanel button{padding:9px 16px;background:#F9A825;border:none;border-radius:8px;font-weight:700;cursor:pointer}
+#configPanel .note{font-size:11px;color:#888;margin-top:8px;line-height:1.5}
+
+/* FILTER BAR */
+.filter-bar{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 20px;margin-bottom:18px;display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.filter-group{display:flex;flex-direction:column;gap:4px}
+.filter-group label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.filter-group select,.filter-group input[type=date],.filter-group input[type=number]{padding:8px 12px;border:1.5px solid var(--border);border-radius:9px;font-size:13px;font-family:'DM Sans',sans-serif;background:var(--surface2);color:var(--text);outline:none;min-width:140px;transition:border .2s}
+.filter-group select:focus,.filter-group input:focus{border-color:var(--blue)}
+.filter-actions{display:flex;gap:8px;align-items:flex-end;margin-left:auto;flex-wrap:wrap}
+.btn{padding:9px 16px;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px;transition:.15s}
+.btn-reload{background:var(--surface2);border:1.5px solid var(--border);color:var(--text2)}
+.btn-dl{background:var(--navy);color:#fff}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.kpi-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 14px 20px;text-align:center;position:relative;overflow:hidden;border-top:5px solid transparent}
+.kpi-card.blue{border-top-color:var(--blue)}.kpi-card.orange{border-top-color:var(--orange)}.kpi-card.pink{border-top-color:var(--pink)}.kpi-card.purple{border-top-color:var(--purple)}.kpi-card.crimson{border-top-color:var(--crimson)}.kpi-card.amber{border-top-color:var(--amber)}
+.kpi-label{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;min-height:28px;display:flex;align-items:center;justify-content:center;line-height:1.3}
+.kpi-val{font-size:26px;font-weight:700;margin-top:6px;line-height:1.1;font-family:'DM Mono',monospace}
+.kpi-val.sm{font-size:12px;font-family:'DM Sans',sans-serif;font-weight:600;line-height:1.4}
+.kpi-sub{font-size:11px;color:var(--text2);margin-top:4px}
+.semaforo{position:absolute;bottom:0;left:0;right:0;height:5px;border-radius:0 0 14px 14px}
+.s-verde{background:var(--green)}.s-amarillo{background:var(--yellow)}.s-rojo{background:var(--red)}
+.falla-bar-wrap{margin-top:6px}
+.falla-bar-bg{background:rgba(255,111,0,.12);border-radius:4px;height:6px;margin-top:4px;overflow:hidden}
+.falla-bar-fill{height:100%;background:var(--amber);border-radius:4px;transition:width .6s ease}
+
+/* ═══════════════════════════════════════════
+   SECCIÓN PREVENTIVOS
+═══════════════════════════════════════════ */
+.prev-section{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;margin-bottom:18px}
+.prev-section-title{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:1.5px solid var(--border)}
+.prev-section-title .icon{width:30px;height:30px;background:var(--navy);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.prev-section-title h3{font-size:14px;font-weight:700;color:var(--text);letter-spacing:-.2px}
+.prev-section-title .pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;margin-left:auto}
+.pill-green{background:rgba(0,200,83,.12);color:#00A040}
+.pill-yellow{background:rgba(255,214,0,.15);color:#c87f00}
+.pill-red{background:rgba(255,23,68,.12);color:#CC0033}
+
+/* HEALTH LAYOUT: gauge izq + columna derecha con KPIs y barras */
+.health-layout{display:flex;gap:20px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+
+/* GAUGE VELOCÍMETRO */
+.gauge-speedometer{flex-shrink:0;text-align:center;background:var(--surface2);border-radius:14px;padding:14px 18px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge-speedometer h4{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.gauge-maq-name-label{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:6px}
+.gauge-pct-sub{font-size:10px;color:var(--text2);margin-top:2px}
+
+/* Columna derecha: KPIs centrados verticalmente */
+.prev-kpi-right{display:flex;flex-direction:column;gap:10px;flex:1;min-width:240px;justify-content:center}
+
+/* KPIs 2×2 */
+.prev-kpi-grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:10px}
+.prev-kpi-card{border-radius:12px;padding:16px 12px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.prev-kpi-card.green-c{background:rgba(0,200,83,.08);border:1.5px solid rgba(0,200,83,.3)}
+.prev-kpi-card.orange-c{background:rgba(255,111,0,.08);border:1.5px solid rgba(255,111,0,.3)}
+.prev-kpi-card.red-c{background:rgba(255,23,68,.08);border:1.5px solid rgba(255,23,68,.3)}
+.prev-kpi-card.navy-c{background:rgba(11,61,145,.07);border:1.5px solid rgba(11,61,145,.2)}
+.pkv{font-size:34px;font-weight:700;font-family:'DM Mono',monospace;line-height:1}
+.green-c .pkv{color:#00A040}.orange-c .pkv{color:#c87f00}.red-c .pkv{color:#CC0033}.navy-c .pkv{color:var(--navy)}
+.pkl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:5px;color:var(--text2)}
+
+/* Barras por máquina — dentro de prev-kpi-right */
+.prev-maq-bars{background:var(--surface2);border-radius:10px;padding:10px 14px;flex:1}
+.prev-maq-bars h5{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px}
+.ph-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.ph-lbl{font-size:10px;color:var(--text2);width:80px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-bg{flex:1;height:7px;background:var(--border);border-radius:3px;overflow:hidden}
+.ph-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.ph-num{font-size:10px;font-family:'DM Mono',monospace;color:var(--text);min-width:16px;text-align:right}
+
+/* Filtros preventivos */
+.prev-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
+.prev-filters .filter-group select{min-width:120px;padding:6px 10px;font-size:12px;border-radius:8px}
+.prev-filters .filter-group label{font-size:10px}
+
+/* Tabla compacta */
+.prev-table-compact{width:100%;border-collapse:collapse;font-size:12px}
+.prev-table-compact thead th{background:var(--surface2);color:var(--text2);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:5px 8px;text-align:left;border-bottom:1.5px solid var(--border)}
+.prev-table-compact tbody td{padding:4px 8px;border-bottom:1px solid var(--border);line-height:1.3}
+.prev-table-compact tbody tr:last-child td{border-bottom:none}
+.prev-table-compact tbody tr:hover{background:var(--surface2)}
+.sem-group-hdr td{background:#f0f4ff;font-size:10px;font-weight:700;color:var(--navy);padding:4px 8px;letter-spacing:.3px}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px}
+.badge-comp{background:rgba(0,200,83,.12);color:#00A040}
+.badge-pend{background:rgba(255,214,0,.15);color:#c87f00}
+.badge-venc{background:rgba(255,23,68,.12);color:#CC0033}
+
+/* ═══════════════════════════════════════════
+   GRÁFICAS correctivos — altura compacta
+═══════════════════════════════════════════ */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;max-width:100%}
+.chart-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:10px 12px}
+.chart-card h3{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;text-align:center;margin-bottom:6px}
+
+/* Área card — donut centrado vertical y horizontalmente */
+.area-inner{display:flex;align-items:center;justify-content:center;gap:20px;padding:48px 0 4px}
+.area-donut-wrap{width:230px;height:230px;flex-shrink:0;position:relative}
+#cAreaDonut{width:230px!important;height:230px!important}
+.legend-area{display:flex;flex-direction:column;gap:7px;flex-shrink:0}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px}
+.legend-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+/* SEMANAL */
+.section-header{display:flex;align-items:center;gap:10px;margin:22px 0 12px}
+.section-header h2{font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+.section-header::after{content:'';flex:1;height:1.5px;background:var(--border);border-radius:2px}
+.weekly-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.weekly-chart-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px}
+.weekly-chart-card h3{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.weekly-chart-card .subtitle{font-size:10px;color:var(--text2);margin-bottom:10px}
+.mttr-mtbf-table-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:14px}
+.mttr-mtbf-table-card h3{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.trend-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}
+.trend-up{background:rgba(255,23,68,.1);color:#FF1744}.trend-down{background:rgba(0,200,83,.1);color:#00C853}.trend-flat{background:rgba(107,114,128,.1);color:#6b7280}
+.trend-up-good{background:rgba(0,200,83,.1);color:#00C853}.trend-down-bad{background:rgba(255,23,68,.1);color:#FF1744}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--surface2);color:var(--text2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;text-align:left;border-bottom:1.5px solid var(--border)}
+tbody td{padding:7px 10px;border-bottom:1px solid var(--border)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+td.num{font-family:'DM Mono',monospace;text-align:right}
+td.center{text-align:center}
+.table-wrap{overflow-x:auto}
+.detail-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px}
+.detail-card h3{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.pag{display:flex;gap:6px;justify-content:flex-end;align-items:center;margin-top:12px}
+.pag button{border:1.5px solid var(--border);border-radius:8px;padding:4px 16px;font-size:18px;line-height:1.2;background:var(--surface2);color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;transition:.15s}
+.pag button:hover:not(:disabled){background:var(--navy);color:#fff;border-color:var(--navy)}
+.pag button:disabled{opacity:.35;cursor:default}
+.empty-msg{text-align:center;padding:20px;color:var(--text2);font-size:12px}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="spinner-box"><div class="spinner"></div><p id="loadingMsg">Cargando...</p></div></div>
+
+<div id="app">
+<div class="topbar">
+<div class="topbar-left">
+<img src="https://images.squarespace-cdn.com/content/v1/620ed8b50c43390f3c3413d1/a1c81e4e-aba8-48b0-adcd-9600d43276da/main_logo_color_footer.png?format=300w" onerror="this.style.display='none'">
+<span class="topbar-title">📊 Reporte Semanal de Mantenimiento</span>
+</div>
+<div class="topbar-right">
+<span class="tag-status tag-warn" id="statusTag">Sin configurar</span>
+<button class="btn-config" onclick="toggleConfig()">⚙️ Config URL</button>
+</div>
+</div>
+
+<div class="main">
+<div id="configPanel">
+<strong>⚙️ Configuración — URL del Apps Script Web App</strong>
+<div class="cfg-row">
+<input type="text" id="scriptUrl" placeholder="Pega aquí la URL de tu Apps Script (termina en /exec)">
+<button onclick="guardarConfig()">Guardar</button>
+</div>
+<div class="note">Pasos: <b>Extensiones → Apps Script</b> → pegar código → <b>Implementar → Nueva implementación → App web → Ejecutar como: Yo → Acceso: Cualquier usuario → copiar URL</b></div>
+</div>
+
+<!-- FILTROS GLOBALES -->
+<div class="filter-bar">
+<div class="filter-group"><label>Área</label><select id="selArea" onchange="actualizar()"><option>Todas</option></select></div>
+<div class="filter-group"><label>Fecha inicio</label><input type="date" id="fIni" onchange="actualizar()"></div>
+<div class="filter-group"><label>Fecha fin</label><input type="date" id="fFin" onchange="actualizar()"></div>
+<div class="filter-group"><label>Horas op. / día</label><input type="number" id="hDia" value="16" min="1" max="24" onchange="actualizar()"></div>
+<div class="filter-actions">
+<button class="btn btn-reload" onclick="cargarDatos()">🔄 Recargar</button>
+<button class="btn btn-dl" onclick="descargarCSV()">⬇ CSV</button>
+</div>
+</div>
+
+<!-- KPIs correctivos -->
+<div class="kpi-grid">
+<div class="kpi-card blue"><div class="kpi-label"># Fallas correctivas</div><div class="kpi-val" id="kFallas">—</div></div>
+<div class="kpi-card orange"><div class="kpi-label">Downtime (min)</div><div class="kpi-val" id="kDT">—</div></div>
+<div class="kpi-card pink" style="padding-bottom:22px"><div class="kpi-label">MTTR (min)</div><div class="kpi-val" id="kMTTR">—</div><div class="semaforo" id="sMTTR"></div></div>
+<div class="kpi-card purple" style="padding-bottom:22px"><div class="kpi-label">MTBF (h)</div><div class="kpi-val" id="kMTBF">—</div><div class="semaforo" id="sMTBF"></div></div>
+<div class="kpi-card crimson"><div class="kpi-label">Máquina crítica</div><div class="kpi-val sm" id="kMaq">—</div></div>
+<div class="kpi-card amber"><div class="kpi-label">Falla más constante</div><div class="kpi-val sm" id="kFallaTop">—</div><div class="kpi-sub" id="kFallaTopSub"></div><div class="falla-bar-wrap" id="kFallaBarWrap" style="display:none"><div class="falla-bar-bg"><div class="falla-bar-fill" id="kFallaBar" style="width:0%"></div></div></div></div>
+</div>
+
+<!-- SECCIÓN PREVENTIVOS -->
+<div class="prev-section">
+  <div class="prev-section-title">
+    <div class="icon">🛠</div>
+    <h3>Plan de Mantenimiento Preventivo</h3>
+    <span class="pill" id="prevPill">Cargando...</span>
+  </div>
+
+  <div class="health-layout">
+    <div class="gauge-speedometer">
+      <h4>Health Score</h4>
+      <div class="gauge-maq-name-label" id="gaugeMaqName">General</div>
+      <svg id="needleGaugeSVG" viewBox="0 0 360 225" width="360" height="225" xmlns="http://www.w3.org/2000/svg">
+        <path id="zRed"    fill="#FF1744" opacity="0.92"/>
+        <path id="zYellow" fill="#FFD600" opacity="0.92"/>
+        <path id="zGreen"  fill="#00C853" opacity="0.92"/>
+        <circle cx="180" cy="200" r="100" fill="white"/>
+        <g id="gTicks"></g>
+        <text x="18"  y="198" font-size="13" fill="transparent" text-anchor="middle"></text>
+        <text x="180" y="28"  font-size="13" fill="transparent" text-anchor="middle"></text>
+        <text x="342" y="198" font-size="13" fill="transparent" text-anchor="middle"></text>
+        <g id="needleG" transform="translate(180,200)">
+          <line id="needleL" x1="0" y1="5" x2="0" y2="-118" stroke="#1a1d23" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="0" cy="0" r="8" fill="#1a1d23"/>
+        </g>
+        <rect id="pctBg" x="155" y="155" width="50" height="28" rx="6" fill="#0B3D91" opacity="0.85"/>
+        <text id="svgPct" x="180" y="174" font-size="18" font-weight="700" fill="white" font-family="DM Mono,monospace" text-anchor="middle">—</text>
+      </svg>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:6px;font-size:10px;color:#666;align-items:center">
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FF1744;display:inline-block"></span>0–40%</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#FFD600;display:inline-block"></span>40–70%</span>
+        <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#00C853;display:inline-block"></span>70–100%</span>
+      </div>
+      <div class="gauge-pct-sub">% preventivos completados</div>
+    </div>
+
+    <div class="prev-kpi-right">
+      <div class="prev-kpi-grid">
+        <div class="prev-kpi-card green-c">
+          <div class="pkv" id="gsComp">—</div>
+          <div class="pkl">✓ Completados</div>
+        </div>
+        <div class="prev-kpi-card orange-c">
+          <div class="pkv" id="gsPend">—</div>
+          <div class="pkl">⏳ Pendientes</div>
+        </div>
+        <div class="prev-kpi-card red-c">
+          <div class="pkv" id="gsVenc">—</div>
+          <div class="pkl">⚠ Vencidos</div>
+        </div>
+        <div class="prev-kpi-card navy-c">
+          <div class="pkv" id="gsTotal">—</div>
+          <div class="pkl">📋 Total</div>
+        </div>
+      </div>
+      <div class="prev-maq-bars" id="gaugeRight" style="display:none">
+        <h5>Preventivos por máquina</h5>
+        <div id="prevHistRows"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prev-filters">
+    <div class="filter-group">
+      <label>Estatus</label>
+      <select id="prevSelEstatus" onchange="actualizarPrev()">
+        <option value="todos">Todos</option>
+        <option value="completado">Completados</option>
+        <option value="pendiente">Pendientes</option>
+        <option value="vencido">Vencidos</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Semana</label>
+      <select id="prevSelSemana" onchange="actualizarPrev()">
+        <option value="todas">Todas las semanas</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Máquina</label>
+      <select id="prevSelMaquina" onchange="actualizarPrev()">
+        <option value="todas">Todas</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="prev-table-compact">
+      <thead>
+        <tr>
+          <th>Fecha</th><th>Área</th><th>Máquina</th><th>Descripción</th>
+          <th style="text-align:center">Estatus</th><th style="text-align:right">Tiempo (min)</th>
+        </tr>
+      </thead>
+      <tbody id="tPrevDetalle"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- PARETO 80/20 -->
+<div class="chart-card" style="margin-bottom:14px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+    <h3 style="margin-bottom:0">80/20 — Equipos críticos por downtime</h3>
+    <div style="display:flex;gap:14px;align-items:center;font-size:10px">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#0B3D91;border-radius:2px;display:inline-block"></span>Downtime (min)</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:20px;height:2px;background:#FF1744;display:inline-block"></span>% Acumulado</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:20px;height:2px;background:#f39c12;border-top:2px dashed #f39c12;display:inline-block"></span>Línea 80%</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:10px;margin-bottom:10px" id="paretoKpis"></div>
+  <div style="position:relative" id="wrapPareto"><canvas id="cPareto"></canvas></div>
+</div>
+
+<!-- SECCIÓN SEMANAL -->
+<div class="section-header"><h2>⏱ Análisis Semanal — MTTR &amp; MTBF</h2></div>
+<div class="mttr-mtbf-table-card"><h3>Resumen por semana</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Semana</th><th>Período</th><th style="text-align:right">Fallas</th><th style="text-align:right">Downtime (min)</th><th style="text-align:right">MTTR (min)</th><th style="text-align:center">MTTR</th><th style="text-align:right">MTBF (h)</th><th style="text-align:center">MTBF</th><th style="text-align:center">Tend. MTTR</th><th style="text-align:center">Tend. MTBF</th></tr></thead>
+<tbody id="tbSemanal"></tbody>
+</table></div>
+</div>
+<div class="weekly-grid">
+<div class="weekly-chart-card"><h3>Tendencia semanal — MTTR</h3><div class="subtitle">Tiempo medio de reparación (min) · Menor es mejor ↓</div><div style="position:relative;height:180px"><canvas id="cMTTRSem"></canvas></div></div>
+<div class="weekly-chart-card"><h3>Tendencia semanal — MTBF</h3><div class="subtitle">Tiempo medio entre fallas (h) · Mayor es mejor ↑</div><div style="position:relative;height:180px"><canvas id="cMTBFSem"></canvas></div></div>
+</div>
+<div class="weekly-chart-card" style="margin-bottom:18px"><h3>Fallas correctivas &amp; Downtime por semana</h3><div class="subtitle">Barras: fallas · Línea: downtime acumulado (min)</div><div style="position:relative;height:120px"><canvas id="cFallasDTSem"></canvas></div></div>
+<div class="detail-card"><h3>Detalle de órdenes</h3>
+<div class="table-wrap"><table><thead><tr id="thDetalle"></tr></thead><tbody id="tbDetalle"></tbody></table></div>
+<div class="pag" id="paginacion"></div>
+</div>
+</div>
+</div>
+
+<script>
+let SCRIPT_URL="https://script.google.com/macros/s/AKfycbx2XTLdlxQf9PAnKeYDMXACM3pE6Dhh2QIb_AlEsV2CgcL53nbaTO4aDxZ5Z_S_xLDoFw/exec";
+let datosBase=[],charts={},pgActual=0;
+const PG=8;
+
+
+function toggleConfig(){const p=document.getElementById('configPanel');p.style.display=p.style.display==='none'?'block':'none';if(SCRIPT_URL)document.getElementById('scriptUrl').value=SCRIPT_URL;}
+function guardarConfig(){const url=document.getElementById('scriptUrl').value.trim();if(!url.includes('script.google.com')){alert('URL inválida');return;}SCRIPT_URL=url;localStorage.setItem('mtto_scriptUrl',url);document.getElementById('configPanel').style.display='none';setStatus('ok','✅ URL guardada');cargarDatos();}
+function setStatus(t,m){const el=document.getElementById('statusTag');el.className='tag-status tag-'+t;el.textContent=m;}
+async function api(p){if(!SCRIPT_URL){alert('Configura la URL');throw new Error('Sin URL');}const r=await fetch(SCRIPT_URL+'?'+new URLSearchParams(p));const j=await r.json();if(!j.success)throw new Error(j.error||'Error');return j;}
+function showLoading(m){document.getElementById('loadingMsg').textContent=m||'Cargando...';document.getElementById('loadingOverlay').style.display='flex';}
+function hideLoading(){document.getElementById('loadingOverlay').style.display='none';}
+
+/* ════════════════════════════════════════
+   GAUGE VELOCÍMETRO SVG CON AGUJA
+════════════════════════════════════════ */
+const GCX=180,GCY=200,GRO=152,GRI=104;
+function gaugeXY(angleDeg,r){const rad=angleDeg*Math.PI/180;return{x:GCX+r*Math.cos(rad),y:GCY+r*Math.sin(rad)};}
+function gaugeArc(a1,a2){const p1=gaugeXY(a1,GRO),p2=gaugeXY(a2,GRO);const p3=gaugeXY(a2,GRI),p4=gaugeXY(a1,GRI);const lg=Math.abs(a2-a1)>180?1:0;return`M${f(p1.x)},${f(p1.y)} A${GRO},${GRO},0,${lg},1,${f(p2.x)},${f(p2.y)} L${f(p3.x)},${f(p3.y)} A${GRI},${GRI},0,${lg},0,${f(p4.x)},${f(p4.y)} Z`;}
+function f(n){return n.toFixed(2);}
+
+function buildGaugeZones(){
+  document.getElementById('zRed').setAttribute('d',gaugeArc(-180,-108));
+  document.getElementById('zYellow').setAttribute('d',gaugeArc(-108,-54));
+  document.getElementById('zGreen').setAttribute('d',gaugeArc(-54,0));
+  const tg=document.getElementById('gTicks');tg.innerHTML='';
+  for(let p=0;p<=100;p+=10){
+    const ang=-180+(p*180/100);const isMain=p%50===0;
+    const ri=isMain?GRI-10:p%20===0?GRI-6:GRI-3;
+    const po=gaugeXY(ang,GRO-1),pi=gaugeXY(ang,ri);
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    ['x1','y1','x2','y2'].forEach((a,i)=>{const v=[po.x,po.y,pi.x,pi.y];line.setAttribute(a,f(v[i]));});
+    line.setAttribute('stroke','rgba(255,255,255,0.7)');line.setAttribute('stroke-width',isMain?'2':'1');
+    tg.appendChild(line);
+    if(p%50===0||p===100){const lp=gaugeXY(ang,GRI-18);const txt=document.createElementNS('http://www.w3.org/2000/svg','text');txt.setAttribute('x',f(lp.x));txt.setAttribute('y',f(lp.y+3));txt.setAttribute('font-size','8');txt.setAttribute('fill','#555');txt.setAttribute('font-family','DM Mono,monospace');txt.setAttribute('text-anchor','middle');txt.textContent=p+'%';tg.appendChild(txt);}
+  }
+}
+
+let needleAnimId=null,needleCurrent=0;
+function setNeedle(pct,anim=true){
+  if(anim){
+    if(needleAnimId)cancelAnimationFrame(needleAnimId);
+    const from=needleCurrent,to=pct,dur=750,t0=performance.now();
+    const step=now=>{const t=Math.min((now-t0)/dur,1);const ease=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;applyNeedle(from+(to-from)*ease);if(t<1)needleAnimId=requestAnimationFrame(step);else needleCurrent=to;};
+    requestAnimationFrame(step);
+  }else{applyNeedle(pct);needleCurrent=pct;}
+}
+function applyNeedle(pct){
+  const ang=(-180+(pct*180/100))*Math.PI/180;
+  const nx=(120*Math.cos(ang)).toFixed(2),ny=(120*Math.sin(ang)).toFixed(2);
+  const nl=document.getElementById('needleL');
+  nl.setAttribute('x2',nx);nl.setAttribute('y2',ny);nl.setAttribute('stroke','#1a1d23');nl.setAttribute('stroke-width','5');
+  document.getElementById('needleG').querySelector('circle').setAttribute('fill','#1a1d23');
+  document.getElementById('svgPct').textContent=Math.round(pct)+'%';
+  document.getElementById('svgPct').setAttribute('fill','#fff');
+}
+
+/* ── Cargar datos ── */
+async function cargarDatos(){
+  showLoading('Cargando datos desde Google Sheets...');
+  try{
+    const res=await api({action:'getAll'});
+    const getF=(obj,...keys)=>{for(const k of keys){if(obj[k]!==undefined&&obj[k]!==null&&String(obj[k]).trim()!=='')return String(obj[k]).trim();const found=Object.keys(obj).find(ok=>ok.trim().toLowerCase()===k.trim().toLowerCase());if(found&&obj[found]!==undefined&&obj[found]!==null&&String(obj[found]).trim()!=='')return String(obj[found]).trim();}return'';};
+    datosBase=(res.data||[]).map(r=>({...r,
+      fecha:(getF(r,'fecha')||'').split('T')[0],
+      tiempo_min:parseFloat(getF(r,'tiempo_min','tiempo','minutos'))||0,
+      tipo_mantenimiento:(getF(r,'tipo_mantenimiento','tipo')||'').toLowerCase(),
+      estatus:(getF(r,'estatus','status','estado')||'').toLowerCase(),
+      area:getF(r,'area','area','departamento'),
+      maquina:getF(r,'MAQUINA','maquina','maquina ','MAQUINA ','maquina','equipo'),
+      descripcion:getF(r,'falla','descripcion','descripcion_falla','tipo_falla'),
+      tipo_falla:getF(r,'falla','tipo_falla','descripcion_falla','descripcion'),
+      tecnico:getF(r,'tecnico','TECNICO'),
+      numero_orden:getF(r,'numero_de_orden','numero_orden','orden'),
+      solucion:getF(r,'solucion','SOLUCION'),
+      turno:getF(r,'TURNO','turno')
+    }));
+    poblarFiltros();pgActual=0;actualizar();setStatus('ok',`✅ ${datosBase.length} registros`);
+  }catch(err){setStatus('err','❌ '+err.message);alert('Error:\n'+err.message);}
+  finally{hideLoading();}
+}
+
+/* ── Filtros ── */
+function poblarFiltros(){
+  const areas=[...new Set(datosBase.map(r=>r.area))].filter(Boolean).sort();
+  document.getElementById('selArea').innerHTML='<option>Todas</option>'+areas.map(a=>`<option>${a}</option>`).join('');
+  const fechas=datosBase.map(r=>r.fecha).filter(Boolean).sort();
+  if(fechas.length){document.getElementById('fIni').value=fechas[0];document.getElementById('fFin').value=fechas[fechas.length-1];}
+  poblarSemanasPrev();
+}
+function filtrar(){
+  const area=document.getElementById('selArea').value;const fi=document.getElementById('fIni').value,ff=document.getElementById('fFin').value;
+  return datosBase.filter(r=>{if(area!=='Todas'&&r.area!==area)return false;if(fi&&r.fecha<fi)return false;if(ff&&r.fecha>ff)return false;return true;});
+}
+function poblarSemanasPrev(){
+  const area=document.getElementById('selArea').value;const fi=document.getElementById('fIni').value,ff=document.getElementById('fFin').value;
+  let prev=datosBase.filter(r=>r.tipo_mantenimiento==='preventivo');
+  if(area!=='Todas')prev=prev.filter(r=>r.area===area);if(fi)prev=prev.filter(r=>r.fecha>=fi);if(ff)prev=prev.filter(r=>r.fecha<=ff);
+  const semanas=[...new Set(prev.map(r=>r.fecha?getISOWeek(r.fecha):'sin-fecha'))].filter(Boolean).sort();
+  const sel=document.getElementById('prevSelSemana');const val=sel.value;
+  sel.innerHTML='<option value="todas">Todas las semanas</option>'+semanas.map(wk=>`<option value="${wk}">${wk==='sin-fecha'?'Sin fecha':semanaLabel(wk)}</option>`).join('');
+  if(semanas.includes(val))sel.value=val;
+  const maquinas=[...new Set(prev.map(r=>r.maquina))].filter(Boolean).sort();
+  const selM=document.getElementById('prevSelMaquina');const valM=selM.value;
+  selM.innerHTML='<option value="todas">Todas</option>'+maquinas.map(m=>`<option value="${m}">${m}</option>`).join('');
+  if(maquinas.includes(valM))selM.value=valM;
+}
+
+/* ── Helpers semana ── */
+function getISOWeek(dateStr){const d=new Date(dateStr+'T00:00:00');const jan4=new Date(d.getFullYear(),0,4);const s=new Date(jan4);s.setDate(jan4.getDate()-((jan4.getDay()+6)%7));const diff=Math.floor((d-s)/86400000);return`${d.getFullYear()}-W${String(Math.floor(diff/7)).padStart(2,'0')}`;}
+function lunesdomingoDeKey(key){const[year,w]=key.split('-W');const wr=parseInt(w)+1;const jan4=new Date(+year,0,4);const lunes=new Date(jan4);lunes.setDate(jan4.getDate()-((jan4.getDay()+6)%7)+(wr-1)*7);const domingo=new Date(lunes);domingo.setDate(lunes.getDate()+6);return{iniSem:lunes.toISOString().slice(0,10),finSem:domingo.toISOString().slice(0,10)};}
+function semanaLabel(key){const[year,w]=key.split('-W');const wr=parseInt(w)+1;const jan4=new Date(+year,0,4);const lunes=new Date(jan4);lunes.setDate(jan4.getDate()-((jan4.getDay()+6)%7)+(wr-1)*7);const domingo=new Date(lunes);domingo.setDate(lunes.getDate()+6);const fmt=d=>d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'});return`Sem ${w} · ${fmt(lunes)}–${fmt(domingo)}`;}
+function calcularMinutosOperativos(ini,fin,hpd){if(!ini||!fin)return 0;let m=0;const d=new Date(ini+'T00:00:00'),df=new Date(fin+'T00:00:00');while(d<=df){const dow=d.getDay();if(dow!==0)m+=dow===6?(hpd/2)*60:hpd*60;d.setDate(d.getDate()+1);}return m;}
+function clasificarEstatus(r){const hoy=new Date().toISOString().slice(0,10);if(r.estatus==='completado')return'completado';if(r.fecha&&r.fecha<hoy)return'vencido';return'pendiente';}
+
+/* ── ACTUALIZAR PRINCIPAL ── */
+function actualizar(){poblarSemanasPrev();const df=filtrar();actualizarKPIs(df);actualizarGraficasCorr(df);actualizarSemanal(df);renderTabla(df);actualizarPrev();}
+
+/* ── KPIs ── */
+function cnt(arr,fn){const m={};arr.forEach(r=>{const k=fn(r);m[k]=(m[k]||0)+1;});return m;}
+function actualizarKPIs(df){
+  const corr=df.filter(r=>r.tipo_mantenimiento==='correctivo');
+  const fallas=corr.length,dt=corr.reduce((s,r)=>s+r.tiempo_min,0);
+  document.getElementById('kFallas').textContent=fallas;document.getElementById('kDT').textContent=dt.toFixed(0);
+  if(fallas>0){
+    const mttr=dt/fallas;document.getElementById('kMTTR').textContent=mttr.toFixed(1);document.getElementById('sMTTR').className='semaforo '+(mttr<=40?'s-verde':mttr<=60?'s-amarillo':'s-rojo');
+    const hDia=parseFloat(document.getElementById('hDia').value)||16;const tOp=Math.max(0,calcularMinutosOperativos(document.getElementById('fIni').value,document.getElementById('fFin').value,hDia)-dt);const mtbf=(tOp/fallas)/60;
+    document.getElementById('kMTBF').textContent=mtbf.toFixed(2);document.getElementById('sMTBF').className='semaforo '+(mtbf>=60?'s-verde':mtbf>=40?'s-amarillo':'s-rojo');
+    const ms={};corr.forEach(r=>{if(!ms[r.maquina])ms[r.maquina]={fallas:0,downtime:0};ms[r.maquina].fallas++;ms[r.maquina].downtime+=r.tiempo_min;});
+    const topMaq=Object.entries(ms).sort((a,b)=>b[1].downtime-a[1].downtime||b[1].fallas-a[1].fallas)[0];
+    document.getElementById('kMaq').textContent=topMaq?`${topMaq[0]} · ${topMaq[1].downtime.toFixed(0)} min / ${topMaq[1].fallas} fallas`:'—';
+    if(topMaq){const cTop=corr.filter(r=>r.maquina===topMaq[0]);const fc=cnt(cTop,r=>r.tipo_falla&&r.tipo_falla.trim()?r.tipo_falla.trim():'(sin clasificar)');const fe=Object.entries(fc).sort((a,b)=>b[1]-a[1]);if(fe.length){const[tf]=fe[0];const dtf=cTop.filter(r=>(r.tipo_falla&&r.tipo_falla.trim()?r.tipo_falla.trim():'(sin clasificar)')===tf).reduce((s,r)=>s+r.tiempo_min,0);const pct=dt>0?Math.round(dtf/dt*100):0;document.getElementById('kFallaTop').textContent=tf;document.getElementById('kFallaTopSub').textContent=`${dtf.toFixed(0)} min · ${pct}% del downtime total`;document.getElementById('kFallaBarWrap').style.display='block';setTimeout(()=>document.getElementById('kFallaBar').style.width=pct+'%',200);}else resetFallaKPI();}else resetFallaKPI();
+  }else{['kMTTR','kMTBF','kMaq'].forEach(id=>document.getElementById(id).textContent='—');['sMTTR','sMTBF'].forEach(id=>document.getElementById(id).className='semaforo');resetFallaKPI();}
+}
+function resetFallaKPI(){document.getElementById('kFallaTop').textContent='—';document.getElementById('kFallaTopSub').textContent='';document.getElementById('kFallaBarWrap').style.display='none';}
+
+/* ── PREVENTIVOS ── */
+function actualizarPrev(){
+  const selEstatus=document.getElementById('prevSelEstatus').value;const selSemana=document.getElementById('prevSelSemana').value;const selMaquina=document.getElementById('prevSelMaquina').value;
+  const area=document.getElementById('selArea').value;const fi=document.getElementById('fIni').value,ff=document.getElementById('fFin').value;
+  let prev=datosBase.filter(r=>r.tipo_mantenimiento==='preventivo');
+  if(area!=='Todas')prev=prev.filter(r=>r.area===area);if(fi)prev=prev.filter(r=>r.fecha>=fi);if(ff)prev=prev.filter(r=>r.fecha<=ff);
+  const tot=prev.length,comp=prev.filter(r=>clasificarEstatus(r)==='completado').length;
+  const pend=prev.filter(r=>clasificarEstatus(r)==='pendiente').length,venc=prev.filter(r=>clasificarEstatus(r)==='vencido').length;
+  const pct=tot>0?Math.round(comp/tot*100):0;
+  const pill=document.getElementById('prevPill');pill.textContent=`${comp}/${tot} completados (${pct}%)`;pill.className='pill '+(venc>0?'pill-red':pend>0?'pill-yellow':'pill-green');
+  document.getElementById('gsComp').textContent=comp;document.getElementById('gsPend').textContent=pend;document.getElementById('gsVenc').textContent=venc;document.getElementById('gsTotal').textContent=tot;
+  let nombre='General';if(selMaquina!=='todas')nombre=selMaquina;else if(selSemana!=='todas')nombre=semanaLabel(selSemana);else if(area!=='Todas')nombre=area;
+  document.getElementById('gaugeMaqName').textContent=nombre;setNeedle(pct,true);
+  const gr=document.getElementById('gaugeRight'),hr=document.getElementById('prevHistRows');
+  if(area!=='Todas'){const src=datosBase.filter(r=>r.tipo_mantenimiento==='preventivo'&&r.area===area);const ms={};src.forEach(r=>{if(!ms[r.maquina])ms[r.maquina]={t:0,c:0};ms[r.maquina].t++;if(clasificarEstatus(r)==='completado')ms[r.maquina].c++;});const ent=Object.entries(ms).sort((a,b)=>b[1].t-a[1].t);const maxV=Math.max(...ent.map(e=>e[1].t),1);hr.innerHTML=ent.slice(0,8).map(([maq,s])=>{const p=s.t>0?Math.round(s.c/s.t*100):0;const w=Math.round(s.t/maxV*100);const c=p>=80?'#00C853':p>=50?'#FFD600':'#FF1744';const activo=selMaquina!=='todas'&&selMaquina===maq?'outline:2px solid var(--navy);border-radius:4px;':'';return`<div class="ph-row" style="${activo}cursor:pointer" onclick="filtrarPorMaquina('${maq}')"><span class="ph-lbl" title="${maq}">${maq}</span><div class="ph-bg"><div class="ph-fill" style="width:${w}%;background:${c}"></div></div><span class="ph-num">${s.t}</span></div>`;}).join('');gr.style.display='block';}else gr.style.display='none';
+  let prevFilt=prev;if(selMaquina!=='todas')prevFilt=prevFilt.filter(r=>r.maquina===selMaquina);if(selEstatus!=='todos')prevFilt=prevFilt.filter(r=>clasificarEstatus(r)===selEstatus);if(selSemana!=='todas')prevFilt=prevFilt.filter(r=>(r.fecha?getISOWeek(r.fecha):'sin-fecha')===selSemana);
+  const semMap={};prevFilt.forEach(r=>{const wk=r.fecha?getISOWeek(r.fecha):'sin-fecha';if(!semMap[wk])semMap[wk]=[];semMap[wk].push(r);});
+  const tbody=document.getElementById('tPrevDetalle');const semanas=Object.keys(semMap).sort();
+  if(!prevFilt.length){tbody.innerHTML=`<tr><td colspan="6" class="empty-msg">Sin preventivos para este filtro</td></tr>`;}
+  else{let html='';semanas.forEach(wk=>{const label=wk==='sin-fecha'?'Sin fecha':semanaLabel(wk);const rows=semMap[wk];const cs=rows.filter(r=>clasificarEstatus(r)==='completado').length;const ps=rows.length>0?Math.round(cs/rows.length*100):0;html+=`<tr class="sem-group-hdr"><td colspan="6">📅 ${label} &nbsp;·&nbsp; ${rows.length} preventivo${rows.length!==1?'s':''} &nbsp;·&nbsp; ${cs}/${rows.length} completados (${ps}%)</td></tr>`;rows.forEach(r=>{const est=clasificarEstatus(r);const badge=est==='completado'?'badge-comp':est==='vencido'?'badge-venc':'badge-pend';const lbl=est==='completado'?'✓ Completado':est==='vencido'?'⚠ Vencido':'⏳ Pendiente';html+=`<tr><td style="color:var(--text2);font-size:10px">${r.fecha||'—'}</td><td>${r.area||'—'}</td><td style="font-weight:600">${r.maquina||'—'}</td><td style="color:var(--text2)">${r.descripcion||'—'}</td><td style="text-align:center"><span class="badge ${badge}">${lbl}</span></td><td style="text-align:right;font-family:'DM Mono',monospace">${r.tiempo_min>0?r.tiempo_min.toFixed(0):'—'}</td></tr>`;});});tbody.innerHTML=html;}
+}
+function filtrarPorMaquina(maq){const sel=document.getElementById('prevSelMaquina');sel.value=sel.value===maq?'todas':maq;actualizarPrev();}
+
+/* ── GRÁFICAS CORRECTIVOS ── */
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart(document.getElementById(id),cfg);}
+function actualizarGraficasCorr(df){
+  const corr=df.filter(r=>r.tipo_mantenimiento==='correctivo');
+  const dtMaq={};corr.forEach(r=>{const m=r.maquina||'Sin máquina';if(!dtMaq[m])dtMaq[m]={dt:0,fallas:0};dtMaq[m].dt+=r.tiempo_min;dtMaq[m].fallas++;});
+  const paretoData=Object.entries(dtMaq).map(([m,v])=>({maq:m,...v})).sort((a,b)=>b.dt-a.dt);
+  const totalDT=paretoData.reduce((s,r)=>s+r.dt,0);const maxDT=paretoData.length>0?paretoData[0].dt:1;const minVisible=maxDT*0.015;
+  const paretoVals=paretoData.map(r=>Math.max(r.dt,minVisible));
+  let acum=0;const pctAcum=paretoData.map(r=>{acum+=r.dt;return Math.round(acum/totalDT*100);});
+  const idx80=pctAcum.findIndex(p=>p>=80);const maqCriticas=idx80>=0?idx80+1:paretoData.length;
+  const pctMaqCriticas=paretoData.length>0?Math.round(maqCriticas/paretoData.length*100):0;
+  const dtCriticas=paretoData.slice(0,maqCriticas).reduce((s,r)=>s+r.dt,0);const pctDtCriticas=totalDT>0?Math.round(dtCriticas/totalDT*100):0;
+  document.getElementById('paretoKpis').innerHTML=`
+    <div style="background:rgba(11,61,145,.07);border:1.5px solid rgba(11,61,145,.2);border-radius:10px;padding:8px 14px;text-align:center;flex:1"><div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:var(--navy)">${maqCriticas}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-top:3px">Máquinas críticas</div><div style="font-size:9px;color:var(--text2)">${pctMaqCriticas}% del total de equipos</div></div>
+    <div style="background:rgba(255,23,68,.07);border:1.5px solid rgba(255,23,68,.2);border-radius:10px;padding:8px 14px;text-align:center;flex:1"><div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:#CC0033">${pctDtCriticas}%</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-top:3px">Del downtime total</div><div style="font-size:9px;color:var(--text2)">${dtCriticas.toFixed(0)} min acumulados</div></div>
+    <div style="background:rgba(243,156,18,.07);border:1.5px solid rgba(243,156,18,.3);border-radius:10px;padding:8px 14px;text-align:center;flex:1"><div style="font-size:20px;font-weight:700;font-family:'DM Mono',monospace;color:#c87f00">${totalDT.toFixed(0)}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-top:3px">Downtime total (min)</div><div style="font-size:9px;color:var(--text2)">${corr.length} fallas correctivas</div></div>
+    <div style="background:rgba(0,200,83,.07);border:1.5px solid rgba(0,200,83,.25);border-radius:10px;padding:8px 14px;text-align:center;flex:1"><div style="font-size:16px;font-weight:700;font-family:'DM Mono',monospace;color:#00A040;word-break:break-word;line-height:1.2">${paretoData.length>0?paretoData[0].maq:'—'}</div><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:var(--text2);margin-top:3px">Equipo #1 crítico</div><div style="font-size:9px;color:var(--text2)">${paretoData.length>0?paretoData[0].dt.toFixed(0)+' min · '+paretoData[0].fallas+' fallas':''}</div></div>`;
+  const barColors=paretoData.map((_,i)=>i<maqCriticas?'#0B3D91':'rgba(180,190,210,0.6)');
+  const hPareto=280;document.getElementById('wrapPareto').style.height=hPareto+'px';
+  mkChart('cPareto',{type:'bar',data:{labels:paretoData.map(r=>r.maq),datasets:[{label:'Downtime (min)',data:paretoVals,backgroundColor:barColors,borderRadius:4,yAxisID:'yDT',order:2},{label:'% Acumulado',data:pctAcum,type:'line',borderColor:'#FF1744',backgroundColor:'transparent',borderWidth:2.5,pointRadius:3,pointBackgroundColor:'#FF1744',tension:0.1,yAxisID:'yPct',order:1},{label:'Línea 80%',data:Array(paretoData.length).fill(80),type:'line',borderColor:'#f39c12',backgroundColor:'transparent',borderDash:[6,4],borderWidth:2,pointRadius:0,yAxisID:'yPct',order:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{if(ctx.dataset.label==='Downtime (min)')return` Downtime: ${paretoData[ctx.dataIndex].dt.toFixed(0)} min`;if(ctx.dataset.label==='% Acumulado')return` Acumulado: ${ctx.parsed.y}%`;return'';},afterLabel:ctx=>{if(ctx.dataset.label==='Downtime (min)'){const d=paretoData[ctx.dataIndex];const pct=totalDT>0?Math.round(d.dt/totalDT*100):0;const critico=ctx.dataIndex<maqCriticas?'⚠ CRÍTICO':'';return[` Fallas: ${d.fallas}`,` % del total: ${pct}%`,critico].filter(Boolean);}return[];}}}},scales:{yDT:{type:'linear',position:'left',beginAtZero:true,grid:{color:'rgba(128,128,128,.08)'},ticks:{color:'#888',font:{size:9}},title:{display:true,text:'Downtime (min)',font:{size:9},color:'#888'}},yPct:{type:'linear',position:'right',min:0,max:100,grid:{drawOnChartArea:false},ticks:{color:'#FF1744',font:{size:9},callback:v=>v+'%'},title:{display:true,text:'% Acumulado',font:{size:9},color:'#FF1744'}},x:{grid:{display:false},ticks:{color:ctx=>ctx.index<maqCriticas?'#0B3D91':'#aaa',font:{size:9},maxRotation:45,autoSkip:false}}},clip:false}});
+}
+
+/* ── SEMANAL ── */
+function calcularSemanal(corr,hDia){if(!corr.length)return[];const sm={};corr.forEach(r=>{const wk=getISOWeek(r.fecha);if(!sm[wk])sm[wk]=[];sm[wk].push(r);});return Object.keys(sm).sort().map(wk=>{const rs=sm[wk];const{iniSem,finSem}=lunesdomingoDeKey(wk);const fallas=rs.length,dt=rs.reduce((s,r)=>s+r.tiempo_min,0);const mttr=fallas>0?dt/fallas:0;const tOp=Math.max(0,calcularMinutosOperativos(iniSem,finSem,hDia)-dt);return{wk,fallas,dt,mttr,mtbf:fallas>0?(tOp/fallas)/60:0};});}
+function actualizarSemanal(df){
+  const hDia=parseFloat(document.getElementById('hDia').value)||16;
+  const sems=calcularSemanal(df.filter(r=>r.tipo_mantenimiento==='correctivo'),hDia);
+  const tbody=document.getElementById('tbSemanal');
+  if(!sems.length){tbody.innerHTML='<tr><td colspan="10" class="empty-msg">Sin datos correctivos</td></tr>';['cMTTRSem','cMTBFSem','cFallasDTSem'].forEach(id=>{if(charts[id])charts[id].destroy();});return;}
+  tbody.innerHTML=sems.map((s,i)=>{const pv=i>0?sems[i-1]:null;const bM=!pv?'':s.mttr<pv.mttr?'<span class="trend-badge trend-down">▼ Mejora</span>':s.mttr>pv.mttr?'<span class="trend-badge trend-up">▲ Sube</span>':'<span class="trend-badge trend-flat">= Igual</span>';const bB=!pv?'':s.mtbf>pv.mtbf?'<span class="trend-badge trend-up-good">▲ Mejora</span>':s.mtbf<pv.mtbf?'<span class="trend-badge trend-down-bad">▼ Baja</span>':'<span class="trend-badge trend-flat">= Igual</span>';const sm=v=>v<=40?'🟢':v<=60?'🟡':'🔴',sb=v=>v>=60?'🟢':v>=40?'🟡':'🔴';return`<tr><td style="font-weight:700;white-space:nowrap">${s.wk}</td><td style="font-size:11px;color:var(--text2);white-space:nowrap">${semanaLabel(s.wk)}</td><td class="num">${s.fallas}</td><td class="num">${s.dt.toFixed(0)}</td><td class="num" style="font-weight:700">${s.mttr.toFixed(1)}</td><td class="center">${sm(s.mttr)}</td><td class="num" style="font-weight:700">${s.mtbf.toFixed(2)}</td><td class="center">${sb(s.mtbf)}</td><td class="center">${bM}</td><td class="center">${bB}</td></tr>`;}).join('');
+  const labels=sems.map(s=>`Sem ${s.wk.split('-W')[1]}`);const mv=sems.map(s=>+s.mttr.toFixed(2)),bv=sems.map(s=>+s.mtbf.toFixed(2)),fv=sems.map(s=>s.fallas),dv=sems.map(s=>+s.dt.toFixed(0));const ln=labels.length;
+  mkChart('cMTTRSem',{type:'line',data:{labels,datasets:[{label:'MTTR (min)',data:mv,borderColor:'#CD3278',backgroundColor:'rgba(205,50,120,.08)',tension:.35,pointRadius:5,pointBackgroundColor:'#CD3278',fill:true,borderWidth:2.5},{label:'Límite (60 min)',data:Array(ln).fill(60),borderColor:'#FF1744',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false},{label:'Meta (40 min)',data:Array(ln).fill(40),borderColor:'#00C853',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:18,padding:12}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,.1)'},ticks:{color:'#888',font:{size:10}}},x:{grid:{display:false},ticks:{color:'#888',font:{size:10},autoSkip:false,maxRotation:30}}}}});
+  mkChart('cMTBFSem',{type:'line',data:{labels,datasets:[{label:'MTBF (h)',data:bv,borderColor:'#3949AB',backgroundColor:'rgba(57,73,171,.08)',tension:.35,pointRadius:5,pointBackgroundColor:'#3949AB',fill:true,borderWidth:2.5},{label:'Meta (60 h)',data:Array(ln).fill(60),borderColor:'#00C853',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false},{label:'Límite (40 h)',data:Array(ln).fill(40),borderColor:'#FF1744',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:18,padding:12}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(128,128,128,.1)'},ticks:{color:'#888',font:{size:10}}},x:{grid:{display:false},ticks:{color:'#888',font:{size:10},autoSkip:false,maxRotation:30}}}}});
+  mkChart('cFallasDTSem',{type:'bar',data:{labels,datasets:[{label:'Fallas',data:fv,backgroundColor:'rgba(52,152,219,.75)',borderRadius:5,yAxisID:'yFallas',maxBarThickness:40},{label:'Downtime (min)',data:dv,type:'line',borderColor:'#f39c12',backgroundColor:'rgba(243,156,18,.08)',tension:.3,pointRadius:4,pointBackgroundColor:'#f39c12',fill:false,borderWidth:2.5,yAxisID:'yDT'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:18,padding:12}}},scales:{yFallas:{type:'linear',position:'left',beginAtZero:true,title:{display:true,text:'Fallas',font:{size:10},color:'#3498db'},grid:{color:'rgba(128,128,128,.1)'},ticks:{color:'#3498db',font:{size:10}}},yDT:{type:'linear',position:'right',beginAtZero:true,title:{display:true,text:'Downtime (min)',font:{size:10},color:'#f39c12'},grid:{drawOnChartArea:false},ticks:{color:'#f39c12',font:{size:10}}},x:{grid:{display:false},ticks:{color:'#888',font:{size:10},autoSkip:false,maxRotation:30}}}}});
+}
+
+/* ── Tabla detalle ── */
+function renderTabla(df){
+  const thead=document.getElementById('thDetalle'),tbody=document.getElementById('tbDetalle'),pag=document.getElementById('paginacion');
+  if(!df.length){thead.innerHTML='';tbody.innerHTML='<tr><td colspan="7" class="empty-msg">Sin registros</td></tr>';pag.innerHTML='';return;}
+  const COLS=[{key:'fecha',label:'Fecha'},{key:'area',label:'Área'},{key:'maquina',label:'Máquina'},{key:'tipo_mantenimiento',label:'Tipo'},{key:'descripcion',label:'Descripción / Falla'},{key:'tecnico',label:'Técnico'},{key:'tiempo_min',label:'Tiempo (min)'},{key:'estatus',label:'Estatus'},{key:'numero_orden',label:'# Orden'}].filter(c=>df.some(r=>r[c.key]!==undefined&&String(r[c.key]||'').trim()!==''));
+  thead.innerHTML=COLS.map(c=>`<th>${c.label}</th>`).join('');
+  const total=Math.ceil(df.length/PG);pgActual=Math.min(pgActual,Math.max(0,total-1));
+  tbody.innerHTML=df.slice(pgActual*PG,(pgActual+1)*PG).map(r=>'<tr>'+COLS.map(c=>`<td style="font-size:12px">${r[c.key]??''}</td>`).join('')+'</tr>').join('');
+  pag.innerHTML='';
+  const prev=document.createElement('button');prev.textContent='‹';prev.disabled=pgActual===0;prev.onclick=()=>{pgActual--;renderTabla(df);};
+  const info=document.createElement('span');info.style.cssText='font-size:12px;color:var(--text2);padding:0 8px;min-width:60px;text-align:center';info.textContent=`${pgActual+1} / ${total}`;
+  const next=document.createElement('button');next.textContent='›';next.disabled=pgActual>=total-1;next.onclick=()=>{pgActual++;renderTabla(df);};
+  pag.appendChild(prev);pag.appendChild(info);pag.appendChild(next);
+}
+
+/* ── CSV ── */
+function descargarCSV(){const df=filtrar();if(!df.length){alert('Sin datos');return;}const cols=Object.keys(df[0]);const rows=[cols.join(','),...df.map(r=>cols.map(c=>`"${r[c]??''}"`).join(','))].join('\n');const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows);a.download=`mtto_${new Date().toISOString().slice(0,10)}.csv`;a.click();}
+
+/* ── Init ── */
+localStorage.setItem('mtto_scriptUrl', SCRIPT_URL);
+document.getElementById('scriptUrl').value = SCRIPT_URL;
+buildGaugeZones();
+cargarDatos();
+</script>
+</body>
+</html>
